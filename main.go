@@ -1,12 +1,12 @@
 package main
 
 import (
-	"github.com/creamdog/quaero/listener"
-	"github.com/creamdog/quaero/mappings"
+	"github.com/creamdog/aproxy/listener"
+	"github.com/creamdog/aproxy/mappings"
 	"log"
 	"time"
 	"net/http"
-	httppipe "github.com/creamdog/quaero/pipes/http"
+	httppipe "github.com/creamdog/aproxy/pipes/http"
 )
 
 var mappingsCollection mappings.Mappings

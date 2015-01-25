@@ -1,7 +1,7 @@
 package http
 
 import(
-	"github.com/creamdog/quaero/mappings"
+	"github.com/creamdog/aproxy/mappings"
 	"io"
 	"net/http"
 	"strings"
