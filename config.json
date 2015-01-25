@@ -1,0 +1,28 @@
+{
+	"listeners" : [
+		{
+			"type" : "http", 
+			"interface" : ":8080", 
+			"ui" : "/ui/"
+		}
+	],
+	"mappings" : {
+		"elasticsearch" : {
+			"target" : {
+				"headers" : {
+					"User-Agent" : "Quaero/0.1"
+				},
+				"verb" : "GET",
+				"uri" : "https://www.google.com?q={{.query.game}}",
+				"body" : "",
+				"cache" : {
+					"key_pattern" : "{{.query}}"
+				}
+			},
+			"mapping" : {
+				"request.path" : "(?i)^/api/test/?$",
+				"query.game" : "(?i)^octagon$"
+			}
+		}
+	}
+}
