@@ -1,8 +1,8 @@
 package main
 
-import(
-	"io/ioutil"
+import (
 	"encoding/json"
+	"io/ioutil"
 )
 
 const (
@@ -10,8 +10,9 @@ const (
 )
 
 type Config struct {
-	Listeners []map[string]interface{} `json:"listeners"`
-	Mappings map[string]interface{} `json:"mappings"`
+	Listeners   []map[string]interface{} `json:"listeners"`
+	Mappings    map[string]interface{}   `json:"mappings"`
+	MappingRepo map[string]interface{}   `json:"mapping"`
 }
 
 func LoadConfig(filename string) (*Config, error) {

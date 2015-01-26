@@ -1,23 +1,33 @@
 package main
 
 import (
+	"github.com/creamdog/aproxy/config/file"
+	"github.com/creamdog/aproxy/config/s3"
 	"github.com/creamdog/aproxy/listener"
 	"github.com/creamdog/aproxy/mappings"
-	"log"
-	"time"
-	"net/http"
 	httppipe "github.com/creamdog/aproxy/pipes/http"
+	"log"
+	"net/http"
+	"time"
 )
 
-var mappingsCollection mappings.Mappings
+var mappingsCollection *mappings.Mappings
 
 func main() {
 	config, err := LoadConfig(configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	mappingsCollection = initializeMappings(config)
 	listeners := initializeListeners(config)
+
+	if section, exists := config.MappingRepo["s3"]; exists {
+		s3.Start(mappingsCollection, section.(map[string]interface{}))
+	} else {
+		file.Start(mappingsCollection, "mapping-configuration")
+	}
+
 	for listeners.IsRunning() {
 		time.Sleep(1 * time.Second)
 	}
@@ -25,12 +35,12 @@ func main() {
 
 func ondata(data map[string]interface{}, w http.ResponseWriter) {
 
-	log.Printf("%q", len(mappingsCollection))
+	log.Printf("%q", len(*mappingsCollection))
 
-	if requestMapping, err := mappingsCollection.GetMatch(data); err != nil {
+	if requestMapping, err := mappingsCollection.Get().GetMatch(data); err != nil {
 		log.Print(err)
 		http.Error(w, err.Error(), 500)
-	} else if(requestMapping != nil) {
+	} else if requestMapping != nil {
 		log.Printf("executing mapping: %v", requestMapping.Id)
 		pipe := httppipe.New()
 		pipe.Pipe(requestMapping, w)
@@ -48,7 +58,7 @@ func (col Listeners) IsRunning() bool {
 	return false
 }
 
-func initializeMappings(config *Config) mappings.Mappings {
+func initializeMappings(config *Config) *mappings.Mappings {
 	mapping, err := mappings.Load(config.Mappings)
 	if err != nil {
 		log.Fatal(err)
@@ -74,6 +84,6 @@ func initializeListeners(config *Config) Listeners {
 
 /*
 
-- caching / cache strategy / 
+- caching / cache strategy /
 
 */

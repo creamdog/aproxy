@@ -1,23 +1,24 @@
 package mappings
 
-import(
-	"text/template"
-	"regexp"
-	"log"
+import (
 	"bytes"
 	"fmt"
+	"log"
+	"regexp"
+	"sync"
+	"text/template"
 )
 
 type Mapping struct {
-	Id string
-	Target *TargetMapping
+	Id      string
+	Target  *TargetMapping
 	Mapping map[string][]string
 }
 type TargetMapping struct {
 	Headers map[string]string
-	Verb string
-	Body string
-	Uri string	
+	Verb    string
+	Body    string
+	Uri     string
 }
 
 func (q *Mapping) Compile() (*CompiledMapping, error) {
@@ -36,7 +37,7 @@ func (q *Mapping) Compile() (*CompiledMapping, error) {
 			if err != nil {
 				return nil, err
 			}
-			if _,exists := compiledMappings[key]; !exists {
+			if _, exists := compiledMappings[key]; !exists {
 				compiledMappings[key] = make([]*regexp.Regexp, 0)
 			}
 			compiledMappings[key] = append(compiledMappings[key], compiledRegexp)
@@ -45,26 +46,26 @@ func (q *Mapping) Compile() (*CompiledMapping, error) {
 	}
 
 	return &CompiledMapping{
-		Mapping: q,
-		CompiledBody : body,
-		CompiledUrl : url,
-		CompiledMapping : compiledMappings,
+		Mapping:         q,
+		CompiledBody:    body,
+		CompiledUrl:     url,
+		CompiledMapping: compiledMappings,
 	}, nil
 }
 
 type CompiledMapping struct {
-	Mapping *Mapping
-	CompiledBody *template.Template
-	CompiledUrl *template.Template
+	Mapping         *Mapping
+	CompiledBody    *template.Template
+	CompiledUrl     *template.Template
 	CompiledMapping map[string][]*regexp.Regexp
 }
 
 type RequestMapping struct {
-	Id string
-	Body string
+	Id      string
+	Body    string
 	Headers map[string]string
-	Verb string
-	Uri string
+	Verb    string
+	Uri     string
 }
 
 func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping, error) {
@@ -75,18 +76,18 @@ func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping
 	uri, err := cm.Uri(data)
 	if err != nil {
 		return nil, err
-	}	
-	return &RequestMapping {
-		Id : cm.Mapping.Id,
-		Body : body,
-		Headers : cm.Mapping.Target.Headers,
-		Verb : cm.Mapping.Target.Verb,
-		Uri : uri,
+	}
+	return &RequestMapping{
+		Id:      cm.Mapping.Id,
+		Body:    body,
+		Headers: cm.Mapping.Target.Headers,
+		Verb:    cm.Mapping.Target.Verb,
+		Uri:     uri,
 	}, nil
 }
 
 func (cm *CompiledMapping) Body(data map[string]interface{}) (string, error) {
-	var buffer bytes.Buffer 
+	var buffer bytes.Buffer
 	if err := cm.CompiledBody.Execute(&buffer, data); err != nil {
 		return "", err
 	}
@@ -94,7 +95,7 @@ func (cm *CompiledMapping) Body(data map[string]interface{}) (string, error) {
 }
 
 func (cm *CompiledMapping) Uri(data map[string]interface{}) (string, error) {
-	var buffer bytes.Buffer 
+	var buffer bytes.Buffer
 	if err := cm.CompiledUrl.Execute(&buffer, data); err != nil {
 		return "", err
 	}
@@ -110,13 +111,13 @@ func flatten(keypath string, d map[string]interface{}) map[string]interface{} {
 	tmp := map[string]interface{}{}
 	for key, value := range d {
 		if m, ok := value.(map[string]interface{}); ok {
-			for k, v := range flatten(keypath + key, m) {
+			for k, v := range flatten(keypath+key, m) {
 				tmp[k] = v
 			}
 		} else if values, ok := value.([]string); ok {
-			tmp[keypath + key] = values
+			tmp[keypath+key] = values
 		} else {
-			tmp[keypath + key] = value.(string)
+			tmp[keypath+key] = value.(string)
 		}
 	}
 	return tmp
@@ -124,7 +125,7 @@ func flatten(keypath string, d map[string]interface{}) map[string]interface{} {
 
 func (m Mappings) GetMatch(complexData map[string]interface{}) (*RequestMapping, error) {
 	data := flatten("", complexData)
-	for _,cm := range m {
+	for _, cm := range m {
 		isMatch := true
 		for key, regexpList := range cm.CompiledMapping {
 			log.Printf("checking %q, key: %v, data: %q", m, key, data)
@@ -133,12 +134,12 @@ func (m Mappings) GetMatch(complexData map[string]interface{}) (*RequestMapping,
 				break
 			} else {
 				for _, regexp := range regexpList {
-					if values,ok := value.([]string); ok {
-						for _,value := range values {
+					if values, ok := value.([]string); ok {
+						for _, value := range values {
 							log.Printf("checking VALUE %q, key: %v, value: %v", m, key, value)
 							if regexp.Match([]byte(value)) {
 								break
-							}							
+							}
 							isMatch = false
 						}
 					} else if value, ok := value.(string); ok {
@@ -159,49 +160,103 @@ func (m Mappings) GetMatch(complexData map[string]interface{}) (*RequestMapping,
 	return nil, nil
 }
 
-func Load(config map[string]interface{}) (Mappings, error) {
-	list := make([]*CompiledMapping, 0)
+var registerMutex *sync.Mutex = &sync.Mutex{}
+
+func (list *Mappings) Get() Mappings {
+	registerMutex.Lock()
+	defer registerMutex.Unlock()
+	clone := make(Mappings, 0)
+	copy(clone, *list)
+	return clone
+}
+
+func (list *Mappings) DeRegister(id string) {
+	registerMutex.Lock()
+	defer registerMutex.Unlock()
+
+	deleted := true
+	for deleted {
+		deleted = false
+		for i, value := range *list {
+			if value.Mapping.Id == id {
+				log.Printf("deleting %v", id)
+				*list = (*list)[:i+copy((*list)[i:], (*list)[i+1:])]
+				deleted = true
+				break
+			}
+		}
+	}
+}
+
+func (list *Mappings) Register(config map[string]interface{}) ([]string, error) {
+
+	registerMutex.Lock()
+	defer registerMutex.Unlock()
+
+	loadedIds := make([]string, 0)
+
 	for id, data := range config {
+
+		deleted := true
+		for deleted {
+			deleted = false
+			for i, value := range *list {
+				if value.Mapping.Id == id {
+					log.Printf("deleting %v", id)
+					*list = (*list)[:i+copy((*list)[i:], (*list)[i+1:])]
+					deleted = true
+					break
+				}
+			}
+		}
+
 		m := &Mapping{
-			Id : id,
-			Target : &TargetMapping{
-				Headers : func()map[string]string {
-						tmp :=  data.(map[string]interface{})["target"].(map[string]interface{})["headers"].(map[string]interface{})
-						list := map[string]string{}
-						for key, v := range tmp {
-							list[key] = v.(string)
-						}
-						return list
-					}(),
-				Verb : strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["verb"]),
-				Body : strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["body"]),
-				Uri : strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["uri"]),
-			},
-			Mapping : func() map[string][]string {
-					tmp := map[string][]string{}
-					for key, value := range data.(map[string]interface{})["mapping"].(map[string]interface{}) {
-						if str, ok := value.(string); ok {
-							tmp[key] = []string{str}
-						} else if arr, ok := value.([]interface{}); ok {
-							tmp[key] = make([]string, 0)
-							for _,v := range arr {
-								tmp[key] = append(tmp[key], v.(string))
-							} 
-						} else {
-							log.Fatal(fmt.Errorf("unsupported mapping %s[%q] = %q", id, key, value))
-						}
+			Id: id,
+			Target: &TargetMapping{
+				Headers: func() map[string]string {
+					tmp := data.(map[string]interface{})["target"].(map[string]interface{})["headers"].(map[string]interface{})
+					list := map[string]string{}
+					for key, v := range tmp {
+						list[key] = v.(string)
 					}
-					return tmp
+					return list
 				}(),
+				Verb: strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["verb"]),
+				Body: strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["body"]),
+				Uri:  strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["uri"]),
+			},
+			Mapping: func() map[string][]string {
+				tmp := map[string][]string{}
+				for key, value := range data.(map[string]interface{})["mapping"].(map[string]interface{}) {
+					if str, ok := value.(string); ok {
+						tmp[key] = []string{str}
+					} else if arr, ok := value.([]interface{}); ok {
+						tmp[key] = make([]string, 0)
+						for _, v := range arr {
+							tmp[key] = append(tmp[key], v.(string))
+						}
+					} else {
+						log.Fatal(fmt.Errorf("unsupported mapping %s[%q] = %q", id, key, value))
+					}
+				}
+				return tmp
+			}(),
 		}
 		if compiled, err := m.Compile(); err != nil {
 			return nil, err
 		} else {
 			log.Printf("loaded mapping '%v'\n", id)
-			list = append(list, compiled)
+			loadedIds = append(loadedIds, id)
+			*list = append(*list, compiled)
 		}
 	}
-	return list, nil
+	return loadedIds, nil
+}
+
+func Load(config map[string]interface{}) (*Mappings, error) {
+	list := make(Mappings, 0)
+	list.Register(config)
+	return &list, nil
 }
 
 func strOrEmpty(v interface{}) string {
