@@ -47,7 +47,8 @@ func ondata(data map[string]interface{}, w http.ResponseWriter) {
 		pipe := httppipe.New()
 		pipe.Pipe(requestMapping, w)
 	} else {
-		log.Printf("found not mapping matching request")
+		http.Error(w, "these are not the droids you're looking for", 404)
+		log.Printf("found no mapping matching request")
 	}
 }
 

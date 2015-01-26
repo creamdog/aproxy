@@ -83,8 +83,8 @@ func (w *worker) poll() {
 				}
 			}
 			if !found {
-				log.Printf("de-registering mapping '%s'", key)
-				w.mapping.DeRegister(key)
+				log.Printf("de-registering mappings %q", w.seen[key].ids)
+				w.mapping.DeRegister(w.seen[key].ids)
 				delete(w.seen, key)
 			}
 		}

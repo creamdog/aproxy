@@ -172,19 +172,20 @@ func (list *Mappings) Get() *Mappings {
 	return &clone
 }
 
-func (list *Mappings) DeRegister(id string) {
+func (list *Mappings) DeRegister(ids []string) {
 	registerMutex.Lock()
 	defer registerMutex.Unlock()
-
-	deleted := true
-	for deleted {
-		deleted = false
-		for i, value := range *list {
-			if value.Mapping.Id == id {
-				log.Printf("deleting %v", id)
-				*list = (*list)[:i+copy((*list)[i:], (*list)[i+1:])]
-				deleted = true
-				break
+	for _, id := range ids {
+		deleted := true
+		for deleted {
+			deleted = false
+			for i, value := range *list {
+				if value.Mapping.Id == id {
+					log.Printf("deleting %v", id)
+					*list = (*list)[:i+copy((*list)[i:], (*list)[i+1:])]
+					deleted = true
+					break
+				}
 			}
 		}
 	}
