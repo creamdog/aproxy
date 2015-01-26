@@ -34,13 +34,20 @@ func main() {
 }
 
 func ondata(data map[string]interface{}, w http.ResponseWriter) {
-	if requestMapping, err := mappingsCollection.Get().GetMatch(data); err != nil {
+
+	mappings := mappingsCollection.Get()
+
+	log.Printf("mappings: %d, data: %v", len(*mappings), data)
+
+	if requestMapping, err := mappings.GetMatch(data); err != nil {
 		log.Print(err)
 		http.Error(w, err.Error(), 500)
 	} else if requestMapping != nil {
 		log.Printf("executing mapping: %v", requestMapping.Id)
 		pipe := httppipe.New()
 		pipe.Pipe(requestMapping, w)
+	} else {
+		log.Printf("found not mapping matching request")
 	}
 }
 

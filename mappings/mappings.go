@@ -162,12 +162,14 @@ func (m Mappings) GetMatch(complexData map[string]interface{}) (*RequestMapping,
 
 var registerMutex *sync.Mutex = &sync.Mutex{}
 
-func (list *Mappings) Get() Mappings {
+func (list *Mappings) Get() *Mappings {
 	registerMutex.Lock()
 	defer registerMutex.Unlock()
 	clone := make(Mappings, 0)
-	copy(clone, *list)
-	return clone
+	for _, value := range *list {
+		clone = append(clone, value)
+	}
+	return &clone
 }
 
 func (list *Mappings) DeRegister(id string) {
