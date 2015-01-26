@@ -26,7 +26,6 @@ func Init(config map[string]interface{}, ondata func(map[string]interface{}, htt
 }
 
 func (listener *HttpListener) handle(w http.ResponseWriter, r *http.Request) {
-
 	data := map[string]interface{}{
 		"request": map[string]interface{}{
 			"method":         r.Method,
@@ -53,9 +52,7 @@ func (listener *HttpListener) handle(w http.ResponseWriter, r *http.Request) {
 			data["header"].(map[string]interface{})[strings.ToLower(key)] = values[0]
 		}
 	}
-
 	listener.OnData(data, w)
-	log.Printf("%q\n", data)
 }
 
 func (listener *HttpListener) Start() {

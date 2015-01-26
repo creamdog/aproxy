@@ -34,9 +34,6 @@ func main() {
 }
 
 func ondata(data map[string]interface{}, w http.ResponseWriter) {
-
-	log.Printf("%q", len(*mappingsCollection))
-
 	if requestMapping, err := mappingsCollection.Get().GetMatch(data); err != nil {
 		log.Print(err)
 		http.Error(w, err.Error(), 500)
