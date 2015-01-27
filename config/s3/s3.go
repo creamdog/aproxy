@@ -6,6 +6,7 @@ import (
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -30,6 +31,21 @@ func Start(mapping *mappings.Mappings, config map[string]interface{}) {
 	bucket := s3Client.Bucket(config["bucket"].(string))
 	w := &worker{auth, s3Client, bucket, mapping, config["enabled_prefix"].(string), config, make(map[string]*ConfigStatus)}
 	go w.poll()
+}
+
+type ConfigMap map[string]interface{}
+
+func (m ConfigMap) LowerCaseKeys() map[string]interface{} {
+	tmp := map[string]interface{}{}
+	for key, value := range m {
+		key = strings.ToLower(key)
+		if subMap, isMap := value.(map[string]interface{}); isMap && key != "headers" && key != "mapping" {
+			tmp[key] = ConfigMap(subMap).LowerCaseKeys()
+		} else {
+			tmp[key] = value
+		}
+	}
+	return tmp
 }
 
 func (w *worker) poll() {
@@ -62,6 +78,11 @@ func (w *worker) poll() {
 					log.Printf("%s => %q", content.Key, err)
 					continue
 				}
+				dconf = ConfigMap(dconf).LowerCaseKeys()
+
+				log.Printf(string(data))
+				log.Printf("%q", dconf)
+
 				if ids, err := w.mapping.Register(dconf["mappings"].(map[string]interface{})); err != nil {
 					log.Printf("%q", err)
 					continue

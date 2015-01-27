@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"strings"
 	"sync"
 	"text/template"
 )
@@ -77,10 +78,28 @@ func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping
 	if err != nil {
 		return nil, err
 	}
+
+	headers := map[string]string{}
+	for key, value := range cm.Mapping.Target.Headers {
+		if len(value) > 0 {
+			headers[key] = value
+		} else if headerdata, exists := data["header"].(map[string]interface{}); exists {
+			for k, value := range headerdata {
+				if strings.ToLower(k) == strings.ToLower(key) {
+					if str, isString := value.(string); isString {
+						headers[key] = str
+					} else if strArray, isStringArray := value.([]string); isStringArray {
+						headers[key] = strArray[0]
+					}
+				}
+			}
+		}
+	}
+
 	return &RequestMapping{
 		Id:      cm.Mapping.Id,
 		Body:    body,
-		Headers: cm.Mapping.Target.Headers,
+		Headers: headers,
 		Verb:    cm.Mapping.Target.Verb,
 		Uri:     uri,
 	}, nil

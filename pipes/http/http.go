@@ -1,15 +1,14 @@
 package http
 
-import(
+import (
 	"github.com/creamdog/aproxy/mappings"
 	"io"
+	"log"
 	"net/http"
 	"strings"
-	"log"
 )
 
 type HttpPipe struct {
-
 }
 
 func New() *HttpPipe {
@@ -20,10 +19,14 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 	request, err := http.NewRequest(mapping.Verb, mapping.Uri, strings.NewReader(mapping.Body))
 
 	log.Printf("%q %q, %q", mapping.Verb, mapping.Uri, mapping.Headers)
+
 	if err != nil {
 		http.Error(w, err.Error(), 503)
 	}
 	request.ContentLength = int64(len(mapping.Body))
+
+	log.Printf("request.ContentLength: %d, mapping.Body: %v", request.ContentLength, mapping.Body)
+
 	for key, value := range mapping.Headers {
 		request.Header[key] = []string{value}
 	}
@@ -34,7 +37,6 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 		for key, value := range response.Header {
 			w.Header().Set(key, value[0])
 		}
-		//w.Header().Set("fsfsdf", "kfjdkfjsdh")
 		w.WriteHeader(response.StatusCode)
 		defer response.Body.Close()
 		io.Copy(w, response.Body)
