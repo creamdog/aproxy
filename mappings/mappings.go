@@ -20,6 +20,12 @@ type TargetMapping struct {
 	Verb    string
 	Body    string
 	Uri     string
+	Transform *TargetTransform
+}
+type TargetTransform struct {
+	Type string
+	Regexp *regexp.Regexp
+	Template string
 }
 
 func (q *Mapping) Compile() (*CompiledMapping, error) {
@@ -31,6 +37,16 @@ func (q *Mapping) Compile() (*CompiledMapping, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var transform *template.Template
+	if q.Target.Transform != nil {
+		transform, err = template.New(q.Id + "_transform").Parse(q.Target.Transform.Template)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("%v => compiled target transform: %v", q.Id, q.Target.Transform.Template)
+	}
+
 	compiledMappings := map[string][]*regexp.Regexp{}
 	for key, values := range q.Mapping {
 		for _, value := range values {
@@ -50,6 +66,7 @@ func (q *Mapping) Compile() (*CompiledMapping, error) {
 		Mapping:         q,
 		CompiledBody:    body,
 		CompiledUrl:     url,
+		CompiledTransform: transform,
 		CompiledMapping: compiledMappings,
 	}, nil
 }
@@ -58,6 +75,7 @@ type CompiledMapping struct {
 	Mapping         *Mapping
 	CompiledBody    *template.Template
 	CompiledUrl     *template.Template
+	CompiledTransform     *template.Template
 	CompiledMapping map[string][]*regexp.Regexp
 }
 
@@ -67,6 +85,9 @@ type RequestMapping struct {
 	Headers map[string]string
 	Verb    string
 	Uri     string
+	Mapping         *Mapping
+	CompiledTransform *template.Template
+	Data    *map[string]interface{}
 }
 
 func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping, error) {
@@ -102,6 +123,9 @@ func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping
 		Headers: headers,
 		Verb:    cm.Mapping.Target.Verb,
 		Uri:     uri,
+		Mapping: cm.Mapping,
+		CompiledTransform: cm.CompiledTransform,
+		Data: &data,
 	}, nil
 }
 
@@ -232,6 +256,11 @@ func (list *Mappings) Register(config map[string]interface{}) ([]string, error) 
 			}
 		}
 
+		transform, err := parseTargetTransform(data.(map[string]interface{})["target"].(map[string]interface{})["transform"])
+		if err != nil {
+			return nil, err
+		}
+
 		m := &Mapping{
 			Id: id,
 			Target: &TargetMapping{
@@ -246,6 +275,7 @@ func (list *Mappings) Register(config map[string]interface{}) ([]string, error) 
 				Verb: strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["verb"]),
 				Body: strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["body"]),
 				Uri:  strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["uri"]),
+				Transform: transform,
 			},
 			Mapping: func() map[string][]string {
 				tmp := map[string][]string{}
@@ -280,9 +310,32 @@ func (list *Mappings) Register(config map[string]interface{}) ([]string, error) 
 	return loadedIds, nil
 }
 
+func parseTargetTransform(data interface{}) (*TargetTransform, error) {
+	if m, exist := data.(map[string]interface{}); exist {
+		log.Printf("loading transformation: %v", m)
+		t := &TargetTransform{
+			Type: m["type"].(string),
+			Template: m["template"].(string),
+		}
+		if expr, ok := m["regexp"].(string); ok {
+			r, err := regexp.Compile(expr)
+			if err != nil {
+				return nil, err
+			}
+			log.Printf("compiled regexp: %v", expr)
+			t.Regexp = r
+		}
+		return t, nil
+	}
+	return nil, nil
+}
+
 func Load(config map[string]interface{}) (*Mappings, error) {
 	list := make(Mappings, 0)
-	list.Register(config)
+	_, err := list.Register(config)
+	if err != nil {
+		return nil, err
+	}
 	return &list, nil
 }
 
