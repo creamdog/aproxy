@@ -264,6 +264,11 @@ func (list *Mappings) Register(config map[string]interface{}) ([]string, error) 
 				return tmp
 			}(),
 		}
+
+		if len(m.Mapping) == 0 {
+			return nil, fmt.Errorf("ignored mapping as it contained no mappings: %s", id)
+		}
+
 		if compiled, err := m.Compile(); err != nil {
 			return nil, err
 		} else {
