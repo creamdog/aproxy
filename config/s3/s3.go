@@ -40,7 +40,7 @@ func (w *worker) poll() {
 		seen := make([]string, 0)
 		for more {
 			more = false
-			resp, err := w.bucket.List(w.enabledPrefix, "/", marker, 1000)
+			resp, err := w.bucket.List(w.enabledPrefix, "", marker, 1000)
 			if err != nil {
 				log.Printf("%q", err)
 				continue
