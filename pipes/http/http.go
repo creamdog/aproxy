@@ -71,11 +71,13 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 		}
 	}
 
+	reqstream := io.Reader(strings.NewReader(mapping.Body))
+	if len(mapping.Mapping.Target.Body) == 0 {
+		defer mapping.RequestStream.Close()
+		reqstream = io.Reader(mapping.RequestStream)
+	}
 
-	request, err := http.NewRequest(mapping.Verb, mapping.Uri, strings.NewReader(mapping.Body))
-
-	
-
+	request, err := http.NewRequest(mapping.Verb, mapping.Uri, reqstream)
 	if err != nil {
 		http.Error(w, err.Error(), 503)
 	}

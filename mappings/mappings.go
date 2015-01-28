@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"io"
 )
 
 type Mapping struct {
@@ -108,6 +109,7 @@ type RequestMapping struct {
 	CompiledTransform *template.Template
 	Data    *map[string]interface{}
 	CacheKey string
+	RequestStream io.ReadCloser
 }
 
 func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping, error) {
@@ -156,6 +158,7 @@ func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping
 		Mapping: cm.Mapping,
 		CompiledTransform: cm.CompiledTransform,
 		Data: &data,
+		RequestStream: data["request"].(map[string]interface{})["body"].(io.ReadCloser),
 		CacheKey: cachekey,
 	}, nil
 }
@@ -191,7 +194,7 @@ func flatten(keypath string, d map[string]interface{}) map[string]interface{} {
 		} else if values, ok := value.([]string); ok {
 			tmp[keypath+key] = values
 		} else {
-			tmp[keypath+key] = value.(string)
+			tmp[keypath+key] = value
 		}
 	}
 	return tmp

@@ -26,6 +26,7 @@ func Init(config map[string]interface{}, ondata func(map[string]interface{}, htt
 }
 
 func (listener *HttpListener) handle(w http.ResponseWriter, r *http.Request) {
+
 	data := map[string]interface{}{
 		"request": map[string]interface{}{
 			"method":         r.Method,
@@ -34,10 +35,12 @@ func (listener *HttpListener) handle(w http.ResponseWriter, r *http.Request) {
 			"protocol":       r.Proto,
 			"uri":            r.RequestURI,
 			"content-length": fmt.Sprintf("%d", r.ContentLength),
+			"body" : r.Body,
 		},
-		"query":  map[string]interface{}{},
-		"header": map[string]interface{}{},
+		"query" :  map[string]interface{}{},
+		"header" : map[string]interface{}{},
 	}
+
 	for key, values := range r.URL.Query() {
 		if len(values) > 1 {
 			data["query"].(map[string]interface{})[strings.ToLower(key)] = values
