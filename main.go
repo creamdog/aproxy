@@ -5,6 +5,7 @@ import (
 	"github.com/creamdog/aproxy/config/s3"
 	"github.com/creamdog/aproxy/listener"
 	"github.com/creamdog/aproxy/mappings"
+	"github.com/creamdog/aproxy/cache"
 	httppipe "github.com/creamdog/aproxy/pipes/http"
 	"log"
 	"net/http"
@@ -12,12 +13,19 @@ import (
 )
 
 var mappingsCollection *mappings.Mappings
+var cacheClient cache.CacheClient
 
 func main() {
 	config, err := LoadConfig(configFile)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	c, err := cache.Get(config.Cache)
+	if err != nil {
+		log.Fatal(err)
+	}
+	cacheClient = c
 
 	mappingsCollection = initializeMappings(config)
 	listeners := initializeListeners(config)
@@ -37,14 +45,14 @@ func ondata(data map[string]interface{}, w http.ResponseWriter) {
 
 	mappings := mappingsCollection.Get()
 
-	log.Printf("mappings: %d, data: %v", len(*mappings), data)
+	//log.Printf("mappings: %d, data: %v", len(*mappings), data)
 
 	if requestMapping, err := mappings.GetMatch(data); err != nil {
 		log.Print(err)
 		http.Error(w, err.Error(), 500)
 	} else if requestMapping != nil {
 		log.Printf("executing mapping: %v", requestMapping.Id)
-		pipe := httppipe.New()
+		pipe := httppipe.New(cacheClient)
 		pipe.Pipe(requestMapping, w)
 	} else {
 		http.Error(w, "these are not the droids you're looking for", 404)

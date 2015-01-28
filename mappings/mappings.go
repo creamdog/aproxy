@@ -14,7 +14,14 @@ type Mapping struct {
 	Id      string
 	Target  *TargetMapping
 	Mapping map[string][]string
+	Caching *CacheStrategy
 }
+
+type CacheStrategy struct {
+	Key string
+	Seconds int
+}
+
 type TargetMapping struct {
 	Headers map[string]string
 	Verb    string
@@ -47,6 +54,16 @@ func (q *Mapping) Compile() (*CompiledMapping, error) {
 		log.Printf("%v => compiled target transform: %v", q.Id, q.Target.Transform.Template)
 	}
 
+	var cacheKey *template.Template
+	if q.Caching != nil {
+		q.Caching.Key = q.Id + ":" + q.Caching.Key
+		cacheKey, err = template.New(q.Id + "_cachekey").Parse(q.Caching.Key)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("%v => compiled cache key: %v", q.Id, q.Caching.Key)
+	}
+
 	compiledMappings := map[string][]*regexp.Regexp{}
 	for key, values := range q.Mapping {
 		for _, value := range values {
@@ -68,6 +85,7 @@ func (q *Mapping) Compile() (*CompiledMapping, error) {
 		CompiledUrl:     url,
 		CompiledTransform: transform,
 		CompiledMapping: compiledMappings,
+		CompiledCacheKey: cacheKey,
 	}, nil
 }
 
@@ -76,6 +94,7 @@ type CompiledMapping struct {
 	CompiledBody    *template.Template
 	CompiledUrl     *template.Template
 	CompiledTransform     *template.Template
+	CompiledCacheKey *template.Template
 	CompiledMapping map[string][]*regexp.Regexp
 }
 
@@ -85,9 +104,10 @@ type RequestMapping struct {
 	Headers map[string]string
 	Verb    string
 	Uri     string
-	Mapping         *Mapping
+	Mapping *Mapping
 	CompiledTransform *template.Template
 	Data    *map[string]interface{}
+	CacheKey string
 }
 
 func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping, error) {
@@ -117,6 +137,16 @@ func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping
 		}
 	}
 
+	cachekey := ""
+	if cm.CompiledCacheKey != nil {
+		var buffer bytes.Buffer
+		if err := cm.CompiledCacheKey.Execute(&buffer, data); err != nil {
+			log.Printf("unable to transform cache key", err)
+		}
+		cachekey = buffer.String()
+		log.Printf("transformed cache key: %s", cachekey)
+	}
+
 	return &RequestMapping{
 		Id:      cm.Mapping.Id,
 		Body:    body,
@@ -126,6 +156,7 @@ func (cm *CompiledMapping) Prepare(data map[string]interface{}) (*RequestMapping
 		Mapping: cm.Mapping,
 		CompiledTransform: cm.CompiledTransform,
 		Data: &data,
+		CacheKey: cachekey,
 	}, nil
 }
 
@@ -171,7 +202,7 @@ func (m Mappings) GetMatch(complexData map[string]interface{}) (*RequestMapping,
 	for _, cm := range m {
 		isMatch := true
 		for key, regexpList := range cm.CompiledMapping {
-			log.Printf("checking %q, key: %v, data: %q", m, key, data)
+			//log.Printf("checking %q, key: %v, data: %q", m, key, data)
 			if value, exists := data[key]; !exists {
 				isMatch = false
 				break
@@ -179,14 +210,14 @@ func (m Mappings) GetMatch(complexData map[string]interface{}) (*RequestMapping,
 				for _, regexp := range regexpList {
 					if values, ok := value.([]string); ok {
 						for _, value := range values {
-							log.Printf("checking VALUE %q, key: %v, value: %v", m, key, value)
+							//log.Printf("checking VALUE %q, key: %v, value: %v", m, key, value)
 							if regexp.Match([]byte(value)) {
 								break
 							}
 							isMatch = false
 						}
 					} else if value, ok := value.(string); ok {
-						log.Printf("checking VALUE %q, key: %v, value: %v", m, key, value)
+						//log.Printf("checking VALUE %q, key: %v, value: %v", m, key, value)
 						if !regexp.Match([]byte(value)) {
 							isMatch = false
 							break
@@ -261,6 +292,17 @@ func (list *Mappings) Register(config map[string]interface{}) ([]string, error) 
 			return nil, err
 		}
 
+		var cache *CacheStrategy
+
+		if cacheConfig, exists := data.(map[string]interface{})["cache_strategy"]; exists {
+			cache = &CacheStrategy{
+				Key : cacheConfig.(map[string]interface{})["key"].(string),
+				Seconds : int(cacheConfig.(map[string]interface{})["duration_seconds"].(float64)),
+			}
+		}
+
+		log.Printf("cache: %v", cache)
+
 		m := &Mapping{
 			Id: id,
 			Target: &TargetMapping{
@@ -293,6 +335,7 @@ func (list *Mappings) Register(config map[string]interface{}) ([]string, error) 
 				}
 				return tmp
 			}(),
+			Caching : cache,
 		}
 
 		if len(m.Mapping) == 0 {
