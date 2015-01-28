@@ -39,6 +39,8 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 	_, notransform := (*mapping.Data)["query"].(map[string]interface{})["_notransform"]
 	_, nocache := (*mapping.Data)["query"].(map[string]interface{})["_nocache"]
 
+	maxBodySize := 1 * 1024 * 1024
+
 	if nocache {
 		mapping.CacheKey = ""		
 	}
@@ -48,7 +50,11 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 		if ok, err := pipe.cache.Get(mapping.CacheKey, &cacheResponse); ok {
 			log.Printf("cache hit: %v", mapping.CacheKey)
 			for key, value := range cacheResponse.Header {
-				w.Header().Set(key, value[0])
+				if key == "Content-Length" {
+					w.Header().Set("Content-Length", fmt.Sprintf("%d", len(cacheResponse.Body)))
+				} else {
+					w.Header().Set(key, value[0])	
+				}	
 			}
 
 			w.Header().Set("X-Cache-Hit", "true")
@@ -102,6 +108,11 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 			read := true
 			//max := 1 * 1024 * 1024
 			for read {
+
+				if len(buffer) > maxBodySize {
+
+				}
+
 				/*
 				if len(buffer) >= max {
 					http.Error(w, fmt.Errorf("transform: maximum input site exceeded %d bytes", max).Error(), 500)
@@ -127,7 +138,7 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 		}
 
 		
-		if mapping.CompiledTransform != nil && !notransform {
+		if mapping.CompiledTransform != nil && !notransform && response.StatusCode == 200 {
 
 			buffer, err := readResponseBody()
 			if err != nil {
@@ -172,12 +183,6 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 			responseBody = renderBuffer.String()
 		} 
 
-		for key, value := range response.Header {
-			w.Header().Set(key, value[0])
-		}
-		w.WriteHeader(response.StatusCode)
-
-
 		if len(mapping.CacheKey) > 0 && !responseBodyRead {
 			buffer, err := readResponseBody()
 			if err != nil {
@@ -185,6 +190,16 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 			}
 			responseBody = string(buffer)
 		}
+
+		for key, value := range response.Header {
+			if responseBodyRead && key == "Content-Length" {
+				w.Header().Set("Content-Length", fmt.Sprintf("%d", len(responseBody)))
+			} else {
+				w.Header().Set(key, value[0])	
+			}	
+		}
+
+		w.WriteHeader(response.StatusCode)
 
 		if responseBodyRead {
 
