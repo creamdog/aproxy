@@ -2,7 +2,6 @@ package file
 
 import (
 	"encoding/json"
-	"github.com/creamdog/aproxy/config"
 	"github.com/creamdog/aproxy/mappings"
 	"io/ioutil"
 	"log"
@@ -47,11 +46,11 @@ func (listener *Listener) loadFile(filename string) {
 	if bytes, err := ioutil.ReadFile(filename); err != nil {
 		return
 	} else {
-		var config config.Configuration
+		var config map[string]interface{}
 		if err = json.Unmarshal(bytes, &config); err != nil {
 			return
 		} else {
-			listener.Mapping.Register(config.Mappings)
+			listener.Mapping.Register(config["mappings"].(map[string]interface{}))
 		}
 	}
 }

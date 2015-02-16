@@ -194,11 +194,29 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 		}
 
 		for key, value := range response.Header {
+
 			if responseBodyRead && key == "Content-Length" {
 				w.Header().Set("Content-Length", fmt.Sprintf("%d", len(responseBody)))
-			} else {
-				w.Header().Set(key, value[0])	
+				continue
 			}	
+
+			if mapping.Mapping.Target.Transform != nil && len(mapping.Mapping.Target.Transform.Headers) > 0 {
+				skip := true
+				for key2, value2 := range mapping.Mapping.Target.Transform.Headers {
+					if strings.ToLower(key2) == strings.ToLower(key) {
+						if len(value2) > 0 {
+							value = []string{value2}
+						}
+						skip = false
+						break
+					}
+				}
+				if skip {
+					continue
+				}
+			}
+
+			w.Header().Set(key, value[0])
 		}
 
 		w.WriteHeader(response.StatusCode)

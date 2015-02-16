@@ -1,22 +1,28 @@
 package main
 
 import (
+	"github.com/creamdog/aproxy/config"
 	"github.com/creamdog/aproxy/config/file"
 	"github.com/creamdog/aproxy/config/s3"
 	"github.com/creamdog/aproxy/listener"
 	"github.com/creamdog/aproxy/mappings"
 	"github.com/creamdog/aproxy/cache"
 	httppipe "github.com/creamdog/aproxy/pipes/http"
-	"log"
+	//"log"
 	"net/http"
-	"time"
+	"time"	
+	"github.com/creamdog/aproxy/log"
 )
 
 var mappingsCollection *mappings.Mappings
 var cacheClient cache.CacheClient
 
+const (
+	defaultConfigFile = "config.json"
+)
+
 func main() {
-	config, err := LoadConfig(configFile)
+	config, err := config.Load(defaultConfigFile)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -71,7 +77,7 @@ func (col Listeners) IsRunning() bool {
 	return false
 }
 
-func initializeMappings(config *Config) *mappings.Mappings {
+func initializeMappings(config *config.Config) *mappings.Mappings {
 	mapping, err := mappings.Load(config.Mappings)
 	if err != nil {
 		log.Fatal(err)
@@ -79,7 +85,7 @@ func initializeMappings(config *Config) *mappings.Mappings {
 	return mapping
 }
 
-func initializeListeners(config *Config) Listeners {
+func initializeListeners(config *config.Config) Listeners {
 	listeners := make([]listener.Listener, 0)
 	for _, lconfig := range config.Listeners {
 		if lconfig["type"] == nil {
@@ -94,9 +100,3 @@ func initializeListeners(config *Config) Listeners {
 	}
 	return listeners
 }
-
-/*
-
-- caching / cache strategy /
-
-*/

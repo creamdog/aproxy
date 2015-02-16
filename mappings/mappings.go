@@ -28,12 +28,14 @@ type TargetMapping struct {
 	Verb    string
 	Body    string
 	Uri     string
+	Stub	bool
 	Transform *TargetTransform
 }
 type TargetTransform struct {
 	Type string
 	Regexp *regexp.Regexp
 	Template string
+	Headers map[string]string
 }
 
 func (q *Mapping) Compile() (*CompiledMapping, error) {
@@ -318,6 +320,7 @@ func (list *Mappings) Register(config map[string]interface{}) ([]string, error) 
 					return list
 				}(),
 				Verb: strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["verb"]),
+				Stub: boolOrFalse(data.(map[string]interface{})["target"].(map[string]interface{})["stub"]),
 				Body: strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["body"]),
 				Uri:  strOrEmpty(data.(map[string]interface{})["target"].(map[string]interface{})["uri"]),
 				Transform: transform,
@@ -363,6 +366,19 @@ func parseTargetTransform(data interface{}) (*TargetTransform, error) {
 			Type: m["type"].(string),
 			Template: m["template"].(string),
 		}
+
+		if value, exists := m["headers"]; exists {
+			if headers, ok := value.(map[string]interface{}); ok {
+				t.Headers = make(map[string]string)
+				for key, raw := range headers {
+					if value, ok := raw.(string); ok {
+						t.Headers[key] = value
+					}
+				}
+				log.Printf("loaded headers: %v\n", t.Headers)
+			}
+		}
+
 		if expr, ok := m["regexp"].(string); ok {
 			r, err := regexp.Compile(expr)
 			if err != nil {
@@ -390,5 +406,13 @@ func strOrEmpty(v interface{}) string {
 		return ""
 	} else {
 		return v.(string)
+	}
+}
+
+func boolOrFalse(v interface{}) bool {
+	if value, ok := v.(bool); ok {
+		return value
+	} else {
+		return false
 	}
 }
