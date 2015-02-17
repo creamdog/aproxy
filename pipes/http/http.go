@@ -1,15 +1,15 @@
 package http
 
 import (
-	"github.com/creamdog/aproxy/mappings"
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"github.com/creamdog/aproxy/cache"
+	"github.com/creamdog/aproxy/mappings"
 	"io"
 	"log"
 	"net/http"
 	"strings"
-	"encoding/json"
-	"bytes"
-	"fmt"
 	"time"
 )
 
@@ -18,16 +18,16 @@ type HttpPipe struct {
 }
 
 type CachedResponse struct {
-	Header map[string][]string
+	Header     map[string][]string
 	StatusCode int
-	Body string
-	Expires int
-	Key string
+	Body       string
+	Expires    int
+	Key        string
 }
 
 func New(cacheClient cache.CacheClient) *HttpPipe {
 	return &HttpPipe{
-		cache : cacheClient,
+		cache: cacheClient,
 	}
 }
 
@@ -42,7 +42,7 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 	maxBodySize := 1 * 1024 * 1024
 
 	if nocache {
-		mapping.CacheKey = ""		
+		mapping.CacheKey = ""
 	}
 
 	if len(mapping.CacheKey) > 0 {
@@ -53,13 +53,13 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 				if key == "Content-Length" {
 					w.Header().Set("Content-Length", fmt.Sprintf("%d", len(cacheResponse.Body)))
 				} else {
-					w.Header().Set(key, value[0])	
-				}	
+					w.Header().Set(key, value[0])
+				}
 			}
 
 			w.Header().Set("X-Cache-Hit", "true")
 			w.Header().Set("X-Cache-Key", cacheResponse.Key)
-			w.Header().Set("X-Cache-Expiration-Seconds", fmt.Sprintf("%d", int64(cacheResponse.Expires) - time.Now().Unix()))
+			w.Header().Set("X-Cache-Expiration-Seconds", fmt.Sprintf("%d", int64(cacheResponse.Expires)-time.Now().Unix()))
 
 			w.WriteHeader(cacheResponse.StatusCode)
 			fmt.Fprint(w, cacheResponse.Body)
@@ -91,8 +91,6 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 
 	request.Header["Transfer-Encoding"] = []string{""}
 
-	
-
 	client := &http.Client{}
 	if response, err := client.Do(request); err != nil {
 		http.Error(w, err.Error(), 500)
@@ -116,10 +114,10 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 				}
 
 				/*
-				if len(buffer) >= max {
-					http.Error(w, fmt.Errorf("transform: maximum input site exceeded %d bytes", max).Error(), 500)
-					return
-				}
+					if len(buffer) >= max {
+						http.Error(w, fmt.Errorf("transform: maximum input site exceeded %d bytes", max).Error(), 500)
+						return
+					}
 				*/
 				read = false
 				num, err := response.Body.Read(readBuffer)
@@ -139,7 +137,6 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 			return buffer, nil
 		}
 
-		
 		if mapping.CompiledTransform != nil && !notransform && response.StatusCode == 200 {
 
 			buffer, err := readResponseBody()
@@ -153,7 +150,7 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 
 			if mapping.Mapping.Target.Transform.Type == "json" {
 				if err := json.Unmarshal(buffer, &responseData); err != nil {
-					http.Error(w, err.Error() + " : " + string(buffer), 500)
+					http.Error(w, err.Error()+" : "+string(buffer), 500)
 					return
 				}
 			} else if mapping.Mapping.Target.Transform.Type == "regexp" {
@@ -171,7 +168,7 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 			//log.Printf("responseData: %v", responseData)
 
 			data := map[string]interface{}{
-				"data" : responseData,
+				"data": responseData,
 			}
 			for key, value := range *mapping.Data {
 				data[key] = value
@@ -183,7 +180,7 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 				return
 			}
 			responseBody = renderBuffer.String()
-		} 
+		}
 
 		if len(mapping.CacheKey) > 0 && !responseBodyRead {
 			buffer, err := readResponseBody()
@@ -198,8 +195,9 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 			if responseBodyRead && key == "Content-Length" {
 				w.Header().Set("Content-Length", fmt.Sprintf("%d", len(responseBody)))
 				continue
-			}	
+			}
 
+			// OVERRIDE HEADERS
 			if mapping.Mapping.Target.Transform != nil && len(mapping.Mapping.Target.Transform.Headers) > 0 {
 				skip := true
 				for key2, value2 := range mapping.Mapping.Target.Transform.Headers {
@@ -219,17 +217,35 @@ func (pipe *HttpPipe) Pipe(mapping *mappings.RequestMapping, w http.ResponseWrit
 			w.Header().Set(key, value[0])
 		}
 
+		// SET CUSTOM HEADERS
+		if mapping.Mapping.Target.Transform != nil && len(mapping.Mapping.Target.Transform.Headers) > 0 {
+			for key, value := range mapping.Mapping.Target.Transform.Headers {
+				if len(value) <= 0 {
+					continue
+				}
+				exists := false
+				for key2, _ := range response.Header {
+					if strings.ToLower(key2) == strings.ToLower(key) {
+						exists = true
+					}
+				}
+				if !exists {
+					w.Header().Set(key, value)
+				}
+			}
+		}
+
 		w.WriteHeader(response.StatusCode)
 
 		if responseBodyRead {
 
 			if len(mapping.CacheKey) > 0 {
 				cachedResponse := CachedResponse{
-					Header : response.Header,
+					Header:     response.Header,
 					StatusCode: response.StatusCode,
-					Body: responseBody,
-					Expires: int(time.Now().Unix()) + mapping.Mapping.Caching.Seconds,
-					Key: mapping.CacheKey,
+					Body:       responseBody,
+					Expires:    int(time.Now().Unix()) + mapping.Mapping.Caching.Seconds,
+					Key:        mapping.CacheKey,
 				}
 				pipe.cache.Set(mapping.CacheKey, cachedResponse.Expires, cachedResponse)
 			}
