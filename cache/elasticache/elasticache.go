@@ -1,15 +1,15 @@
 package elasticache
 
-import (
-	"../memcached"
-	"fmt"
-	"github.com/crowdmob/goamz/aws"
+import(
 	"github.com/crowdmob/goamz/elasticache"
+	"github.com/crowdmob/goamz/aws"
+	"github.com/creamdog/aproxy/cache/memcached"
+	"fmt"
 )
 
 func Init(config map[string]interface{}) (*memcached.MemcachedClient, error) {
 	auth := &aws.Auth{AccessKey: config["access_key"].(string), SecretKey: config["secret_key"].(string)}
-	client := elasticache.New(*auth, aws.GetRegion(config["region"].(string)))
+	client := elasticache.New(*auth, aws.GetRegion(config["region"].(string)))	
 	if info, err := client.DescribeCacheCluster(config["cluster"].(string)); err != nil {
 		return nil, err
 	} else {

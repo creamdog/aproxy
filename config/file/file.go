@@ -1,8 +1,8 @@
 package file
 
 import (
-	"../../mappings"
 	"encoding/json"
+	"github.com/creamdog/aproxy/mappings"
 	"io/ioutil"
 	"log"
 	"path"

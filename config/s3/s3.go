@@ -1,8 +1,8 @@
 package s3
 
 import (
-	"../../mappings"
 	"encoding/json"
+	"github.com/creamdog/aproxy/mappings"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
 	"log"

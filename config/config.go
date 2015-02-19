@@ -1,16 +1,16 @@
 package config
 
 import (
-	"../log"
 	"encoding/json"
 	"io/ioutil"
+	"github.com/creamdog/aproxy/log"
 )
 
 type Config struct {
 	Listeners   []map[string]interface{} `json:"listeners"`
 	Mappings    map[string]interface{}   `json:"mappings"`
 	MappingRepo map[string]interface{}   `json:"mapping"`
-	Cache       map[string]interface{}   `json:"cache"`
+	Cache 		map[string]interface{}   `json:"cache"`
 }
 
 func Load(filename string) (*Config, error) {
