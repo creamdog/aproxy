@@ -1,17 +1,17 @@
 package main
 
 import (
-	"./cache"
-	"./config"
-	"./config/file"
-	"./config/s3"
-	"./listener"
-	"./mappings"
-	httppipe "./pipes/http"
+	"github.com/creamdog/aproxy/config"
+	"github.com/creamdog/aproxy/config/file"
+	"github.com/creamdog/aproxy/config/s3"
+	"github.com/creamdog/aproxy/listener"
+	"github.com/creamdog/aproxy/mappings"
+	"github.com/creamdog/aproxy/cache"
+	httppipe "github.com/creamdog/aproxy/pipes/http"
 	//"log"
-	"./log"
 	"net/http"
-	"time"
+	"time"	
+	"github.com/creamdog/aproxy/log"
 )
 
 var mappingsCollection *mappings.Mappings
