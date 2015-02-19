@@ -1,11 +1,11 @@
 package http
 
 import (
+	"../../cache"
+	"../../mappings"
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/creamdog/aproxy/cache"
-	"github.com/creamdog/aproxy/mappings"
 	"io"
 	"log"
 	"net/http"
