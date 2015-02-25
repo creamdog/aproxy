@@ -5,6 +5,7 @@ import (
 	"github.com/creamdog/aproxy/mappings"
 	"github.com/crowdmob/goamz/aws"
 	"github.com/crowdmob/goamz/s3"
+	"github.com/frontierpsycho/paradoxutil/s3poller"
 	"log"
 	"strings"
 )
@@ -21,7 +22,7 @@ func Start(mapping *mappings.Mappings, config map[string]interface{}) {
 
 	filesStatus := FilesStatus{mapping, make(map[string][]string)}
 
-	poller := S3Poller{
+	poller := s3poller.S3Poller{
 		auth,
 		s3Client,
 		bucket,
